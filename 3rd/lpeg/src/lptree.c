@@ -180,8 +180,14 @@ static int addtoktable (lua_State *L, int idx) {
 ** the environment has no numeric indices (len == 0)
 */
 static int ktablelen (lua_State *L, int idx) {
+   // fix for mylua
   if (!lua_istable(L, idx)) return 0;
-  else return lua_rawlen(L, idx);
+  else {
+    int tt = lua_rawgeti(L, idx, 1);
+    lua_pop(L,1);
+    if (tt == LUA_TNIL) return 0;
+    return lua_rawlen(L, idx);
+  }
 }
 
 
