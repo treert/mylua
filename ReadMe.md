@@ -3,7 +3,7 @@ mylua
 
 ## 想法
 - 重新拾起lua，根据自己的喜好定制成mylua，准备作为自己的胶水语言。
-  - 使用新语法或api后，就不和lua兼容了。【定制嘛，所以取名mylua】
+  - [mylua](./mylua/README.md)
 - 后续的工作
   - 定制下 lsp ，来支持mylua的语法。
   - 为 mylua 扩充标准 api。【如果不用array，会和lua完成兼容。】
@@ -21,8 +21,3 @@ lua 相关的一些非常好的开源库。
   - 孙颐久大佬开发的 lua lsp。结合类型注释后，lua就非常好用了。
 - git@github.com:cloudwu/skynet.git
   - 云风的 skynet
-
-## 目录安排
-先和git库放一起吧。
-考虑因素
-1. 有些库有lua文件
