@@ -51,20 +51,8 @@ local listeningTimeoutSec = 0.5;       -- lua进程作为Server时,连接超时�
 local userDotInRequire = true;         --兼容require中使用 require(a.b) 和 require(a/b) 的形式引用文件夹中的文件，默认无需修改
 local traversalUserData = false;        --如果可以的话(取决于userdata原表中的__pairs)，展示userdata中的元素。 如果在调试器中展开userdata时有错误，请关闭此项.
 local customGetSocketInstance = nil;    --支持用户实现一个自定义调用luasocket的函数，函数返回值必须是一个socket实例。例: function() return require("socket.core").tcp() end;
-local consoleLogLevel = 0;           --打印在控制台(print)的日志等级 0 : all/ 1: info/ 2: error.
+local consoleLogLevel = 2;           --打印在控制台(print)的日志等级 0 : all/ 1: info/ 2: error.
 --用户设置项END
-
--- 支持UE4
-local luasocket = (lua_extension and lua_extension.luasocket and lua_extension.luasocket())
-if not luasocket then
-    -- todo@om 还没想好这么处理
-    package.path = "C:/Users/onemore/Desktop/MyGit/LuaAbout/luasocket/x64/Debug/socket/?.lua;"..package.path
-    package.cpath = "C:/Users/onemore/Desktop/MyGit/LuaAbout/luasocket/x64/Debug/?.dll;"..package.cpath
-    local ok = pcall(function() luasocket =  require("socket.core"); end)
-    if not luasocket then
-        print("can not find luasocket. 指望 customGetSocketInstance 了")
-    end
-end
 
 local debuggerVer = "3.2.0";                 --debugger版本号
 LuaPanda = {};
@@ -131,7 +119,7 @@ local variableRefTab = {};      --变量记录table
 local lastRunFilePath = "";     --最后执行的文件路径
 local pathCaseSensitivity = true;  --路径是否发大小写敏感，这个选项接收VScode设置，请勿在此处更改
 local recvMsgQueue = {};        --接收的消息队列
-local coroutinePool = setmetatable({}, {__mode = "v"});       --保存用户协程的队列
+local coroutinePool = {};       --保存用户协程的队列
 local winDiskSymbolUpper = false;--设置win下盘符的大小写。以此确保从VSCode中传入的断点路径,cwd和从lua虚拟机获得的文件路径盘符大小写一致
 local isNeedB64EncodeStr = false;-- 记录是否使用base64编码字符串
 local loadclibErrReason = 'launch.json文件的配置项useCHook被设置为false.';
@@ -267,11 +255,10 @@ end
 function this.sockConnect(sock)
     if sock then
         local connectSuccess, status = sock:connect(recordHost, recordPort);
-        if status == "connection refused" or (not connectSuccess and status == "already connected") then
+        if status == "connection refused" then
             this.reGetSock();
         end
-
-        return connectSuccess
+        return connectSuccess;
     end
     return nil;
 end
@@ -318,7 +305,20 @@ function this.connectSuccess()
     this.changeHookState(hookState.ALL_HOOK);
     if hookLib == nil then
         --协程调试
-        this.changeCoroutinesHookState();
+        if coroutineCreate == nil and type(coroutine.create) == "function" then
+            this.printToConsole("change coroutine.create");
+            coroutineCreate = coroutine.create;
+            coroutine.create = function(...)
+                local co =  coroutineCreate(...)
+                table.insert(coroutinePool,  co);
+                --运行状态下，创建协程即启动hook
+                this.changeCoroutineHookState();
+                return co;
+            end
+        else
+            this.printToConsole("restart coroutine");
+            this.changeCoroutineHookState();
+        end
     end
 
 end
@@ -373,22 +373,6 @@ function this.disconnect()
     end
 
     this.reGetSock();
-end
-
-function this.replaceCoroutineFuncs()
-    if hookLib == nil then
-        if coroutineCreate == nil and type(coroutine.create) == "function" then
-            this.printToConsole("change coroutine.create");
-            coroutineCreate = coroutine.create;
-            coroutine.create = function(...)
-                local co =  coroutineCreate(...)
-                table.insert(coroutinePool,  co);
-                --运行状态下，创建协程即启动hook
-                this.changeCoroutineHookState(co, currentHookState);
-                return co;
-            end
-        end
-    end
 end
 
 -----------------------------------------------------------------------------
@@ -947,13 +931,12 @@ function this.reGetSock()
     end
 
     --call slua-unreal luasocket
-    sock = luasocket and luasocket.tcp();
+    sock = lua_extension and lua_extension.luasocket and lua_extension.luasocket().tcp();
     if sock == nil then
         --call normal luasocket
-    --    if pcall(function() sock =  require("socket.core").tcp(); end) then
-    --         this.printToConsole("reGetSock success");
-    --    else
-        do
+       if pcall(function() sock =  require("socket.core").tcp(); end) then
+            this.printToConsole("reGetSock success");
+       else
             --call custom function to get socket
             if customGetSocketInstance and pcall( function() sock =  customGetSocketInstance(); end ) then
                 this.printToConsole("reGetSock custom success");
@@ -1560,7 +1543,7 @@ function this.receiveMessage( timeoutSec )
         this.printToConsole("[debugger error]接收信息失败  |  reason: socket == nil", 2);
         return;
     end
-    local response, err = sock:receive("*l");
+    local response, err = sock:receive();
     if response == nil then
         if err == "closed" then
             this.printToConsole("[debugger error]接收信息失败  |  reason:"..err, 2);
@@ -1640,46 +1623,39 @@ function this.getStackTable( level )
     end
     local stackTab = {};
     local userFuncSteakLevel = 0; --用户函数的steaklevel
-    local clevel = 0
     repeat
         local info = debug.getinfo(functionLevel, "SlLnf")
         if info == nil then
             break;
         end
-        if info.source ~= "=[C]" then
-            local ss = {};
-            ss.file = this.getPath(info);
-            local oPathFormated = this.formatOpath(info.source) ; --从lua虚拟机获得的原始路径, 它用于帮助定位VScode端原始lua文件的位置(存在重名文件的情况)。
-            ss.oPath = this.truncatedPath(oPathFormated, truncatedOPath);
-            ss.name = "文件名"; --这里要做截取
-            ss.line = tostring(info.currentline);
-            --使用hookLib时，堆栈有偏移量，这里统一调用栈顶编号2
-            local ssindex = functionLevel - 3;
-            if hookLib ~= nil then
-                ssindex = ssindex + 2;
-            end
-            ss.index = tostring(ssindex);
-            table.insert(stackTab,ss);
-            --把数据存入currentCallStack
-            local callStackInfo = {};
-            callStackInfo.name = ss.file;
-            callStackInfo.line = ss.line;
-            callStackInfo.func = info.func;                     --保存的function
-            callStackInfo.realLy = functionLevel;               --真实堆栈层functionLevel(仅debug时用)
-            table.insert(currentCallStack, callStackInfo);
+        if info.source == "=[C]" then
+            break;
+        end
 
-            --level赋值
-            if userFuncSteakLevel == 0 then
-                userFuncSteakLevel = functionLevel;
-            end
-        else
-            local callStackInfo = {};
-            callStackInfo.name = info.source;
-            callStackInfo.line = info.currentline;              --C函数行号
-            callStackInfo.func = info.func;                     --保存的function
-            callStackInfo.realLy = functionLevel;               --真实堆栈层functionLevel(仅debug时用)
-            table.insert(currentCallStack, callStackInfo);
-            clevel = clevel + 1
+        local ss = {};
+        ss.file = this.getPath(info);
+        local oPathFormated = this.formatOpath(info.source) ; --从lua虚拟机获得的原始路径, 它用于帮助定位VScode端原始lua文件的位置(存在重名文件的情况)。
+        ss.oPath = this.truncatedPath(oPathFormated, truncatedOPath);
+        ss.name = "文件名"; --这里要做截取
+        ss.line = tostring(info.currentline);
+        --使用hookLib时，堆栈有偏移量，这里统一调用栈顶编号2
+        local ssindex = functionLevel - 3;
+        if hookLib ~= nil then
+            ssindex = ssindex + 2;
+        end
+        ss.index = tostring(ssindex);
+        table.insert(stackTab,ss);
+        --把数据存入currentCallStack
+        local callStackInfo = {};
+        callStackInfo.name = ss.file;
+        callStackInfo.line = ss.line;
+        callStackInfo.func = info.func;     --保存的function
+        callStackInfo.realLy = functionLevel;              --真实堆栈层functionLevel(仅debug时用)
+        table.insert(currentCallStack, callStackInfo);
+
+        --level赋值
+        if userFuncSteakLevel == 0 then
+            userFuncSteakLevel = functionLevel;
         end
         functionLevel = functionLevel + 1;
     until info == nil
@@ -1882,7 +1858,7 @@ function this.isHitBreakpoint(breakpointPath, opath, curLine)
         local oPathFormated;
         for fullpath, fullpathNode in pairs(breaks[breakpointPath]) do
             recordBreakPointPath = fullpath; --这里是为了兼容用户断点行号没有打对的情况
-            local line_hit,cur_node = false,{};
+            local line_hit = false, cur_node;
             for _, node in ipairs(fullpathNode) do
                 if tonumber(node["line"]) == tonumber(curLine) then 
                     line_hit = true;    -- fullpath 文件中 有行号命中
@@ -2336,7 +2312,7 @@ function this.changeHookState( s )
     end
     --coroutine
     if hookLib == nil then
-        this.changeCoroutinesHookState();
+        this.changeCoroutineHookState();
     end
 end
 
@@ -2369,31 +2345,24 @@ end
 
 -- 修改协程状态
 -- @s hook标志位
-function this.changeCoroutinesHookState(s)
+function this.changeCoroutineHookState(s)
     s = s or currentHookState;
     this.printToConsole("change [Coroutine] HookState: "..tostring(s));
     for k ,co in pairs(coroutinePool) do
         if coroutine.status(co) == "dead" then
-            coroutinePool[k] = nil
+            table.remove(coroutinePool, k)
         else
-            this.changeCoroutineHookState(co, s)
+            if s == hookState.DISCONNECT_HOOK then
+                if openAttachMode == true then
+                    debug.sethook(co, this.debug_hook, "r", 1000000);
+                else
+                    debug.sethook(co, this.debug_hook, "");
+                end
+            elseif s == hookState.LITE_HOOK then debug.sethook(co , this.debug_hook, "r");
+            elseif s == hookState.MID_HOOK then debug.sethook(co , this.debug_hook, "rc");
+            elseif s == hookState.ALL_HOOK then debug.sethook(co , this.debug_hook, "lrc");
+            end
         end
-    end
-end
-
-function this.changeCoroutineHookState(co, s)
-    if s == hookState.DISCONNECT_HOOK then
-        if openAttachMode == true then
-            debug.sethook(co, this.debug_hook, "r", 1000000);
-        else
-            debug.sethook(co, this.debug_hook, "");
-        end
-    elseif s == hookState.LITE_HOOK then
-        debug.sethook(co , this.debug_hook, "r");
-    elseif s == hookState.MID_HOOK then
-        debug.sethook(co , this.debug_hook, "rc");
-    elseif s == hookState.ALL_HOOK then
-        debug.sethook(co , this.debug_hook, "lrc");
     end
 end
 -------------------------变量处理相关-----------------------------
@@ -3616,5 +3585,4 @@ end
 -- tools变量
 json = tools.createJson(); --json处理
 this.printToConsole("load LuaPanda success", 1);
-this.replaceCoroutineFuncs()
 return this;
