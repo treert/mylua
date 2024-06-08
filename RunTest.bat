@@ -2,7 +2,7 @@
 set batdir=%~dp0
 cd /d "%batdir%"
 
-pushd .\mylua\testes
+pushd .\lua\testes
 
 lua -W all.lua >nul
 

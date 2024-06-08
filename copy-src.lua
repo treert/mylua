@@ -111,27 +111,28 @@ if not lfs.attributes("./copy-src.lua") then
     error("need run in dir where copy-src.lua in")
 end
 
-if config.lua and is_dir("../lua") then
-    local srcs = {'lapi.c','lcorolib.c','ldo.c','linit.c','lmem.c','loslib.c','lstrlib.c',
-    'ltm.c','lutf8lib.c','lauxlib.c','lctype.c','ldump.c','liolib.c','loadlib.c','lparser.c',
-    'ltable.c','lua.c','lvm.c','lbaselib.c','ldblib.c','lfunc.c','llex.c',
-    'lobject.c','lstate.c','ltablib.c','luac.c','lzio.c','lcode.c','ldebug.c',
-    'lgc.c','lmathlib.c','lopcodes.c','lstring.c','ltests.c','lundump.c','onelua.c',}
+-- 现在用 submodule 的释放加入 lua
+-- if config.lua and is_dir("../lua") then
+--     local srcs = {'lapi.c','lcorolib.c','ldo.c','linit.c','lmem.c','loslib.c','lstrlib.c',
+--     'ltm.c','lutf8lib.c','lauxlib.c','lctype.c','ldump.c','liolib.c','loadlib.c','lparser.c',
+--     'ltable.c','lua.c','lvm.c','lbaselib.c','ldblib.c','lfunc.c','llex.c',
+--     'lobject.c','lstate.c','ltablib.c','luac.c','lzio.c','lcode.c','ldebug.c',
+--     'lgc.c','lmathlib.c','lopcodes.c','lstring.c','ltests.c','lundump.c','onelua.c',}
     
-    local heads = {'lapi.h', 'lctype.h', 'lfunc.h', 'llex.h', 'lobject.h', 'lparser.h', 'lstring.h',
-    'ltm.h','lualib.h','lzio.h','lauxlib.h','ldebug.h','lgc.h','llimits.h',
-    'lopcodes.h','lprefix.h','ltable.h','lua.h','lundump.h','lcode.h','ldo.h','ljumptab.h',
-    'lmem.h','lopnames.h','lstate.h','ltests.h','luaconf.h','lvm.h',}
+--     local heads = {'lapi.h', 'lctype.h', 'lfunc.h', 'llex.h', 'lobject.h', 'lparser.h', 'lstring.h',
+--     'ltm.h','lualib.h','lzio.h','lauxlib.h','ldebug.h','lgc.h','llimits.h',
+--     'lopcodes.h','lprefix.h','ltable.h','lua.h','lundump.h','lcode.h','ldo.h','ljumptab.h',
+--     'lmem.h','lopnames.h','lstate.h','ltests.h','luaconf.h','lvm.h',}
 
-    for _,file in srcs do
-        copyfile("../lua/"..file,"./mylua/src/"..file)
-    end
+--     for _,file in srcs do
+--         copyfile("../lua/"..file,"./mylua/src/"..file)
+--     end
 
-    for _,file in heads do
-        copyfile("../lua/"..file,"./mylua/src/"..file)
-    end
-    print "copy lua finish"
-end
+--     for _,file in heads do
+--         copyfile("../lua/"..file,"./mylua/src/"..file)
+--     end
+--     print "copy lua finish"
+-- end
 
 if config.lfs and is_dir("../luafilesystem") then
     copyfile("../luafilesystem/src/lfs.c","./3rd/luafilesystem/src/lfs.c")

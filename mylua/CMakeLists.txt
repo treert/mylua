@@ -1,12 +1,14 @@
 cmake_minimum_required(VERSION 3.6)
 
+# mylua 单独编译用，和 lua 目录里的大致类似。
+
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)  # C++ 11 是强制要求，不会衰退至低版本
 set(CMAKE_CXX_EXTENSIONS OFF)  # 禁止使用编译器特有扩展
 
-set(LUA_Root ${CMAKE_CURRENT_SOURCE_DIR})
-set(LUA_SRC_PATH ${CMAKE_CURRENT_SOURCE_DIR}/src)
+set(MY_LUA_Root ${CMAKE_CURRENT_SOURCE_DIR})
+set(LUA_SRC_PATH ${PROJECT_SOURCE_DIR}/lua)
 set (LUA_SRC_FILES
     ${LUA_SRC_PATH}/lapi.c
     ${LUA_SRC_PATH}/lbaselib.c
@@ -50,14 +52,17 @@ target_compile_definitions ( liblua_share PRIVATE LUAI_MAXCCALLS=128) # windows 
 target_include_directories(liblua_share PUBLIC ${LUA_SRC_PATH})
 set_target_properties ( liblua_share PROPERTIES OUTPUT_NAME mylua )
 
-add_executable ( lua ${LUA_SRC_PATH}/lua.c ${LUA_Root}/icon/mylua.rc)
+add_executable ( lua ${LUA_SRC_PATH}/lua.c ${MY_LUA_Root}/icon/mylua.rc)
 target_link_libraries ( lua liblua_share )
+install (TARGETS lua liblua_share
+        #  ARCHIVE DESTINATION lib
+        #  LIBRARY DESTINATION lib
+         RUNTIME DESTINATION bin
+         )
 
 # luac 只能和 lualib 静态链接. 不想改代码，就这样用着吧
-add_executable ( luac ${LUA_SRC_FILES} ${LUA_SRC_PATH}/luac.c ${LUA_Root}/icon/mylua.rc)
-
-
-install (TARGETS lua luac liblua_share
+add_executable ( luac ${LUA_SRC_FILES} ${LUA_SRC_PATH}/luac.c ${MY_LUA_Root}/icon/mylua.rc)
+install (TARGETS luac
         #  ARCHIVE DESTINATION lib
         #  LIBRARY DESTINATION lib
          RUNTIME DESTINATION bin
