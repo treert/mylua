@@ -1,4 +1,4 @@
-[my lua](./doc/mylua.md)
+[my lua](../lua/doc/mylua.md)
 --------
 ## my lua 的主要修改
 - 修改了 table 的实现。现在 **table = ordered_map | array**。map is default，是个支持排序的 HashTable。
@@ -7,6 +7,7 @@
 - 增加稳定排序 [stable sort](#talbestable_sort)
 - 一些不兼容的修改。[不兼容修改](#不兼容修改)
 - for in 遍历修改了。[for in](#for-in)
+- 数字常量支持 '_' 分格。数字可以是这样的`1_000_000`
 
 ### 关于 lua
 实现了 map + array + stable_sort 后。
