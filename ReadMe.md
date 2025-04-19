@@ -3,7 +3,7 @@ mylua
 
 ## 想法
 - 重新拾起lua，根据自己的喜好定制成mylua，准备作为自己的胶水语言。
-  - [mylua](./mylua/README.md)
+  - [mylua](./lua/README.md)
 - 后续的工作
   - 定制下 lsp ，来支持mylua的语法。
   - 为 mylua 扩充标准 api。【如果不用array，会和lua完成兼容。】
